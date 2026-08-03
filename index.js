@@ -1,3 +1,6 @@
+// 1. Carrega as variáveis de ambiente (Tokens) do arquivo .env
+require('dotenv').config(); 
+
 const express = require('express');
 const cors = require('cors');
 const axios = require('axios');
@@ -5,7 +8,9 @@ const { MercadoPagoConfig, Preference } = require('mercadopago');
 
 const app = express();
 
-// Configurações Globais
+// =======================================================
+// CONFIGURAÇÕES GLOBAIS
+// =======================================================
 app.use(cors());
 app.use(express.json());
 
@@ -14,11 +19,11 @@ const client = new MercadoPagoConfig({
     accessToken: process.env.MP_ACCESS_TOKEN 
 });
 
-// URL do Front-end no GitHub Pages
+// URL do Front-end no GitHub Pages (Para onde o Mercado Pago deve redirecionar)
 const SITE_URL = "https://guuholiveira2202-png.github.io/Hype-PIzzaria/";
 
 // =======================================================
-// ROTA 1: Status do Servidor (Para verificar se está online)
+// ROTA 1: Status do Servidor (Health Check)
 // =======================================================
 app.get('/', (req, res) => {
     res.send('🚀 Servidor HYPE STORE rodando com sucesso!');
@@ -43,7 +48,7 @@ app.post('/gerar-pagamento', async (req, res) => {
             payer: {
                 email: email
             },
-            // VÍNCULO FUNDAMENTAL: Envia o ID do Firebase para o Mercado Pago
+            // Envia o ID do Firebase/Pedido para o Mercado Pago
             external_reference: idPedido, 
             back_urls: {
                 success: SITE_URL,
@@ -81,14 +86,16 @@ app.post('/enviar-superfrete', async (req, res) => {
             return res.status(500).json({ error: "SUPERFRETE_TOKEN não configurado no servidor." });
         }
 
-        // Remetente (Sua Loja)
+        // =======================================================
+        // ⚠️ PREENCHA COM SEUS DADOS REAIS DE REMETENTE
+        // =======================================================
         const REMETENTE = {
             name: "Hype Store",
-            phone: "11999999999",
+            phone: "11999999999", // Seu WhatsApp/Telefone real
             email: "contato@hypestore.com",
-            document: "00000000000",
+            document: "SEU_CPF_OU_CNPJ_AQUI", // ⚠️ OBRIGATÓRIO: Apenas números
             company_name: "Hype Store",
-            postal_code: "01001000",
+            postal_code: "01001000", // Seu CEP real
             address: "Praça da Sé",
             number: "100",
             district: "Centro",
@@ -102,14 +109,24 @@ app.post('/enviar-superfrete', async (req, res) => {
             return res.status(400).json({ error: `CEP inválido para o pedido ${pedido.id || ''}` });
         }
 
-        // Monta o payload no padrão do SuperFrete
+        // Tratamento do CPF de destino (Obrigatório para o SuperFrete)
+        const docCliente = (pedido.cliente?.cpf || "").replace(/\D/g, '');
+        if (!docCliente) {
+            return res.status(400).json({ error: "CPF do cliente é obrigatório para gerar frete." });
+        }
+
+        // Regra de Seguro dos Correios: Mínimo de R$ 25,00
+        let valorFinal = Number(pedido.totals?.finalTotal) || 0;
+        let valorSeguro = (valorFinal > 0 && valorFinal < 25) ? 25 : valorFinal;
+
+        // Monta o payload no padrão da V2 do SuperFrete
         const payloadSuperFrete = {
             from: REMETENTE,
             to: {
                 name: pedido.cliente?.nome || "Cliente Hype",
                 phone: (pedido.cliente?.whatsapp || "11999999999").replace(/\D/g, ''),
                 email: pedido.cliente?.email || "cliente@email.com",
-                document: (pedido.cliente?.cpf || "00000000000").replace(/\D/g, ''),
+                document: docCliente, 
                 postal_code: cepLimpo,
                 address: pedido.shipping?.logradouro || "Rua Principal",
                 number: pedido.shipping?.numero || "10",
@@ -125,16 +142,16 @@ app.post('/enviar-superfrete', async (req, res) => {
             })) || [],
             volumes: [{ height: 10, width: 15, length: 20, weight: 0.5 }],
             options: {
-                insurance_value: pedido.totals?.finalTotal || 0,
+                insurance_value: valorSeguro,
                 receipt: false,
                 own_hand: false,
                 reverse: false,
-                non_commercial: true
+                non_commercial: true // true = envio com declaração de conteúdo (sem NFe)
             },
-            service: 1
+            service: 1 // 1 = PAC, 2 = SEDEX
         };
 
-        // Dispara para a API oficial do SuperFrete (Sem problemas de CORS)
+        // Dispara para a API oficial do SuperFrete
         const response = await axios.post('https://api.superfrete.com/api/v2/cart', payloadSuperFrete, {
             headers: {
                 'Authorization': `Bearer ${SUPERFRETE_TOKEN}`,
