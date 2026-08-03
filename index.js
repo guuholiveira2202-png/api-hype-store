@@ -20,7 +20,7 @@ const client = new MercadoPagoConfig({
 });
 
 // URL do Front-end no GitHub Pages (Para onde o Mercado Pago deve redirecionar)
-const SITE_URL = "https://guuholiveira2202-png.github.io/Hype-PIzzaria/";
+const SITE_URL = "https:imperiummagnata.com.br";
 
 // =======================================================
 // ROTA 1: Status do Servidor (Health Check)
@@ -51,9 +51,9 @@ app.post('/gerar-pagamento', async (req, res) => {
             // Envia o ID do Firebase/Pedido para o Mercado Pago
             external_reference: idPedido, 
             back_urls: {
-                success: SITE_URL,
-                failure: SITE_URL,
-                pending: SITE_URL,
+                success: imperiummagnata.com.br,
+                failure: imperiummagnata.com.br,
+                pending: imperiummagnata.com.br,
             },
             // Redireciona o cliente automaticamente para o site após aprovação
             auto_return: "approved",
@@ -90,15 +90,15 @@ app.post('/enviar-superfrete', async (req, res) => {
         // ⚠️ PREENCHA COM SEUS DADOS REAIS DE REMETENTE
         // =======================================================
         const REMETENTE = {
-            name: "Hype Store",
-            phone: "11999999999", // Seu WhatsApp/Telefone real
-            email: "contato@hypestore.com",
-            document: "SEU_CPF_OU_CNPJ_AQUI", // ⚠️ OBRIGATÓRIO: Apenas números
-            company_name: "Hype Store",
-            postal_code: "01001000", // Seu CEP real
-            address: "Praça da Sé",
-            number: "100",
-            district: "Centro",
+            name: "imperium magnata",
+            phone: "11930073485", // Seu WhatsApp/Telefone real
+            email: "eliaby.le@gmail.com",
+            document: "51789563895", // ⚠️ OBRIGATÓRIO: Apenas números
+            company_name: "imperium magnata",
+            postal_code: "06653550", // Seu CEP real
+            address: "Nilza",
+            number: "63",
+            district: "Jardim julieta",
             city: "São Paulo",
             state_code: "SP"
         };
