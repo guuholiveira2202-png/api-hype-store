@@ -1,37 +1,21 @@
-// 1. Carrega as variáveis de ambiente (Tokens) do arquivo .env
-require('dotenv').config(); 
-
 const express = require('express');
 const cors = require('cors');
-const axios = require('axios');
 const { MercadoPagoConfig, Preference } = require('mercadopago');
 
 const app = express();
 
-// =======================================================
-// CONFIGURAÇÕES GLOBAIS
-// =======================================================
+// Permite que o seu site acesse a API
 app.use(cors());
 app.use(express.json());
 
-// Instância do Mercado Pago utilizando a variável de ambiente
+// Pega a chave do Mercado Pago configurada nas variáveis de ambiente do Render
 const client = new MercadoPagoConfig({ 
     accessToken: process.env.MP_ACCESS_TOKEN 
 });
 
-// URL do Front-end no GitHub Pages (Para onde o Mercado Pago deve redirecionar)
-const SITE_URL = "https:imperiummagnata.com.br";
+// URL do seu site hospedado no GitHub Pages
+const SITE_URL = "https://guuholiveira2202-png.github.io/Hype-PIzzaria/";
 
-// =======================================================
-// ROTA 1: Status do Servidor (Health Check)
-// =======================================================
-app.get('/', (req, res) => {
-    res.send('🚀 Servidor HYPE STORE rodando com sucesso!');
-});
-
-// =======================================================
-// ROTA 2: Gerar Pagamento (Mercado Pago)
-// =======================================================
 app.post('/gerar-pagamento', async (req, res) => {
     try {
         const { titulo, valor, email, idPedido } = req.body;
@@ -48,7 +32,7 @@ app.post('/gerar-pagamento', async (req, res) => {
             payer: {
                 email: email
             },
-            // Envia o ID do Firebase/Pedido para o Mercado Pago
+            // VÍNCULO FUNDAMENTAL: Envia o ID do Firebase para o Mercado Pago
             external_reference: idPedido, 
             back_urls: {
                 success: imperiummagnata.com.br,
@@ -62,7 +46,7 @@ app.post('/gerar-pagamento', async (req, res) => {
         const preference = new Preference(client);
         const result = await preference.create({ body });
         
-        // Retorna o link do checkout para o front-end
+        // Retorna o link de pagamento para o front-end
         res.json({ init_point: result.init_point });
     } catch (error) {
         console.error("Erro interno no Mercado Pago:", error);
@@ -70,110 +54,8 @@ app.post('/gerar-pagamento', async (req, res) => {
     }
 });
 
-// =======================================================
-// ROTA 3: Enviar Pedido para o SuperFrete
-// =======================================================
-app.post('/enviar-superfrete', async (req, res) => {
-    try {
-        const { pedido } = req.body;
-
-        if (!pedido) {
-            return res.status(400).json({ error: "Dados do pedido não foram enviados." });
-        }
-
-        const SUPERFRETE_TOKEN = process.env.SUPERFRETE_TOKEN;
-        if (!SUPERFRETE_TOKEN) {
-            return res.status(500).json({ error: "SUPERFRETE_TOKEN não configurado no servidor." });
-        }
-
-        // =======================================================
-        // ⚠️ PREENCHA COM SEUS DADOS REAIS DE REMETENTE
-        // =======================================================
-        const REMETENTE = {
-            name: "imperium magnata",
-            phone: "11930073485", // Seu WhatsApp/Telefone real
-            email: "eliaby.le@gmail.com",
-            document: "51789563895", // ⚠️ OBRIGATÓRIO: Apenas números
-            company_name: "imperium magnata",
-            postal_code: "06653550", // Seu CEP real
-            address: "Nilza",
-            number: "63",
-            district: "Jardim julieta",
-            city: "São Paulo",
-            state_code: "SP"
-        };
-
-        // Tratamento do CEP de destino
-        const cepLimpo = (pedido.shipping?.cep || "").replace(/\D/g, '');
-        if (!cepLimpo || cepLimpo.length !== 8) {
-            return res.status(400).json({ error: `CEP inválido para o pedido ${pedido.id || ''}` });
-        }
-
-        // Tratamento do CPF de destino (Obrigatório para o SuperFrete)
-        const docCliente = (pedido.cliente?.cpf || "").replace(/\D/g, '');
-        if (!docCliente) {
-            return res.status(400).json({ error: "CPF do cliente é obrigatório para gerar frete." });
-        }
-
-        // Regra de Seguro dos Correios: Mínimo de R$ 25,00
-        let valorFinal = Number(pedido.totals?.finalTotal) || 0;
-        let valorSeguro = (valorFinal > 0 && valorFinal < 25) ? 25 : valorFinal;
-
-        // Monta o payload no padrão da V2 do SuperFrete
-        const payloadSuperFrete = {
-            from: REMETENTE,
-            to: {
-                name: pedido.cliente?.nome || "Cliente Hype",
-                phone: (pedido.cliente?.whatsapp || "11999999999").replace(/\D/g, ''),
-                email: pedido.cliente?.email || "cliente@email.com",
-                document: docCliente, 
-                postal_code: cepLimpo,
-                address: pedido.shipping?.logradouro || "Rua Principal",
-                number: pedido.shipping?.numero || "10",
-                district: pedido.shipping?.bairro || "Bairro",
-                city: (pedido.shipping?.cidadeUF || "Sao Paulo/SP").split('/')[0].trim(),
-                state_code: (pedido.shipping?.cidadeUF || "SP").split('/')[1]?.trim() || "SP",
-                note: `Pedido ${pedido.id ? '#' + pedido.id.substring(0, 8).toUpperCase() : ''}`
-            },
-            products: pedido.items?.map(item => ({
-                name: item.name || "Produto Hype",
-                quantity: item.quantity || 1,
-                unitary_value: item.price || 10
-            })) || [],
-            volumes: [{ height: 10, width: 15, length: 20, weight: 0.5 }],
-            options: {
-                insurance_value: valorSeguro,
-                receipt: false,
-                own_hand: false,
-                reverse: false,
-                non_commercial: true // true = envio com declaração de conteúdo (sem NFe)
-            },
-            service: 1 // 1 = PAC, 2 = SEDEX
-        };
-
-        // Dispara para a API oficial do SuperFrete
-        const response = await axios.post('https://api.superfrete.com/api/v2/cart', payloadSuperFrete, {
-            headers: {
-                'Authorization': `Bearer ${SUPERFRETE_TOKEN}`,
-                'Content-Type': 'application/json',
-                'Accept': 'application/json'
-            }
-        });
-
-        return res.json({ success: true, data: response.data });
-    } catch (error) {
-        console.error("Erro no SuperFrete:", error.response?.data || error.message);
-        return res.status(500).json({ 
-            error: "Erro ao enviar pedido ao SuperFrete.", 
-            detalhes: error.response?.data || error.message 
-        });
-    }
-});
-
-// =======================================================
-// INICIALIZAÇÃO DO SERVIDOR
-// =======================================================
+// A porta é definida dinamicamente pelo Render
 const PORT = process.env.PORT || 3000;
 app.listen(PORT, () => {
-    console.log(`🚀 Servidor HYPE STORE rodando com sucesso na porta ${PORT}`);
+    console.log(`Servidor HYPE STORE rodando na porta ${PORT}`);
 });
