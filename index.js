@@ -35,9 +35,9 @@ app.post('/gerar-pagamento', async (req, res) => {
             // VÍNCULO FUNDAMENTAL: Envia o ID do Firebase para o Mercado Pago
             external_reference: idPedido, 
             back_urls: {
-                success: imperiummagnata.com.br,
-                failure: imperiummagnata.com.br,
-                pending: imperiummagnata.com.br,
+                success: SITE_URL,
+                failure: SITE_URL,
+                pending: SITE_URL,
             },
             // Redireciona o cliente automaticamente para o site após aprovação
             auto_return: "approved",
